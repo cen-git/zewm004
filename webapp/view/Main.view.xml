@@ -1,6 +1,37 @@
 <mvc:View controllerName="zewm004.controller.Main"
     xmlns:mvc="sap.ui.core.mvc"
-    xmlns="sap.m">
-    <Page id="page" title="{i18n>title}">
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+    <Page id="screen1Page" showHeader="false">
+        <content>
+            <Toolbar id="screen1Toolbar">
+                <ToolbarSpacer id="screen1ToolbarSpacer"/>
+                <Title id="screen1Title" text="{i18n>titleScreen1}"/>
+                <ToolbarSpacer id="screen1ToolbarSpacer2"/>
+            </Toolbar>
+            <f:SimpleForm id="screen1Form" editable="true" layout="ResponsiveGridLayout">
+                <f:content>
+                    <Label id="screen1LblMaterial" text="{i18n>lblMaterial}"/>
+                    <Input id="s1Material" maxLength="40" liveChange=".onMaterialLiveChange"/>
+                    <Label id="screen1LblSrcLoc" text="{i18n>lblSrcLoc}"/>
+                    <Input id="s1SrcLoc" maxLength="4" liveChange=".onSrcLocLiveChange"/>
+                    <Label id="screen1LblBatch" text="{i18n>lblBatch}"/>
+                    <Input id="s1Batch" maxLength="10" liveChange=".onBatchLiveChange"/>
+                    <Label id="screen1LblQty" text="{i18n>lblQty}"/>
+                    <Input id="s1Qty" type="Number" liveChange=".onQtyLiveChange"/>
+                    <Label id="screen1LblPackMat" text="{i18n>lblPackMat}"/>
+                    <Input id="s1PackMat" maxLength="40" liveChange=".onPackMatLiveChange"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <footer>
+            <Toolbar id="screen1Footer">
+                <ToolbarSpacer id="screen1FooterSpacer"/>
+                <Button id="screen1BtnBack" text="{i18n>btnBack}" press=".onBack"/>
+                <Button id="screen1BtnClear" text="{i18n>btnClear}" press=".onClear"/>
+                <Button id="screen1BtnRefresh" text="{i18n>btnRefresh}" press=".onRefresh"/>
+                <Button id="screen1BtnConfirm" text="{i18n>btnConfirm}" press=".onConfirm"/>
+            </Toolbar>
+        </footer>
     </Page>
 </mvc:View>

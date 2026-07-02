@@ -1,0 +1,33 @@
+<mvc:View controllerName="zewm004.controller.Screen2"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+    <Page id="screen2Page" showHeader="false">
+        <content>
+            <Toolbar id="screen2Toolbar">
+                <ToolbarSpacer id="screen2ToolbarSpacer"/>
+                <Title id="screen2Title" text="{i18n>titleScreen2}"/>
+                <ToolbarSpacer id="screen2ToolbarSpacer2"/>
+            </Toolbar>
+            <f:SimpleForm id="screen2Form" editable="true" layout="ResponsiveGridLayout">
+                <f:content>
+                    <Label id="screen2LblHU" text="{i18n>lblHU}"/>
+                    <Input id="s2HU" value="{flow>/hu}" enabled="false"/>
+                    <Label id="screen2LblRecommendedBin" text="{i18n>lblRecommendedBin}"/>
+                    <Input id="s2RecommendedBin" value="{flow>/recommendedBin}" enabled="false"/>
+                    <Label id="screen2LblDestBin" text="{i18n>lblDestBin}"/>
+                    <Input id="s2DestBin" maxLength="18" liveChange=".onDestBinLiveChange"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <footer>
+            <Toolbar id="screen2Footer">
+                <ToolbarSpacer id="screen2FooterSpacer"/>
+                <Button id="screen2BtnBack" text="{i18n>btnBack}" press=".onBack"/>
+                <Button id="screen2BtnClear" text="{i18n>btnClear}" press=".onClear"/>
+                <Button id="screen2BtnRefresh" text="{i18n>btnRefresh}" press=".onRefresh"/>
+                <Button id="screen2BtnConfirm" text="{i18n>btnConfirm}" press=".onConfirm"/>
+            </Toolbar>
+        </footer>
+    </Page>
+</mvc:View>

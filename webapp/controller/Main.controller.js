@@ -157,7 +157,7 @@ sap.ui.define([
                 this.byId("s1Qty").focus();
             }.bind(this), function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgBatchNotExist", [sValue]));
-            }.bind(this), "ZEWM004-S1-CHECKBATCH");
+            }.bind(this), "ZEWM004-S1-CHECKBATC");
         },
 
         onQtySubmit: function(sDomValue) {
@@ -194,7 +194,7 @@ sap.ui.define([
             this._values.s1PackMat = sValue;
             this._clearError(oInput);
 
-            this._callApi("check_packmat", { packMat: sValue }, function() {
+            this._callApi("check_pack", { packMat: sValue }, function() {
             }, function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgPackMatNotExist", [sValue]));
             }.bind(this), "ZEWM004-S1-CHECKPACKMAT");

@@ -116,6 +116,13 @@
           "target": [
             "TargetScreen2"
           ]
+        },
+        {
+          "name": "RouteScreen3",
+          "pattern": "screen3",
+          "target": [
+            "TargetScreen3"
+          ]
         }
       ],
       "targets": {
@@ -126,6 +133,10 @@
         "TargetScreen2": {
           "id": "Screen2",
           "name": "Screen2"
+        },
+        "TargetScreen3": {
+          "id": "Screen3",
+          "name": "Screen3"
         }
       }
     },

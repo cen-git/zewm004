@@ -1,0 +1,31 @@
+<mvc:View controllerName="zewm004.controller.Screen3"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m"
+    xmlns:f="sap.ui.layout.form">
+    <Page id="screen3Page" showHeader="false">
+        <content>
+            <Toolbar id="screen3Toolbar">
+                <ToolbarSpacer id="screen3ToolbarSpacer"/>
+                <Title id="screen3Title" text="{i18n>titleScreen3}"/>
+                <ToolbarSpacer id="screen3ToolbarSpacer2"/>
+            </Toolbar>
+            <f:SimpleForm id="screen3Form" editable="true" layout="ResponsiveGridLayout">
+                <f:content>
+                    <Label id="screen3LblHU" text="{i18n>lblHU}"/>
+                    <Input id="s3HU" value="{flow>/hu}" enabled="false"/>
+                    <Label id="screen3LblPrinter" text="{i18n>lblPrinter}"/>
+                    <Input id="s3Printer" maxLength="10" liveChange=".onPrinterLiveChange"/>
+                </f:content>
+            </f:SimpleForm>
+        </content>
+        <footer>
+            <Toolbar id="screen3Footer">
+                <ToolbarSpacer id="screen3FooterSpacer"/>
+                <Button id="screen3BtnBack" text="{i18n>btnBack}" press=".onBack"/>
+                <Button id="screen3BtnClear" text="{i18n>btnClear}" press=".onClear"/>
+                <Button id="screen3BtnRefresh" text="{i18n>btnRefresh}" press=".onRefresh"/>
+                <Button id="screen3BtnPrint" text="{i18n>btnPrint}" press=".onPrint"/>
+            </Toolbar>
+        </footer>
+    </Page>
+</mvc:View>

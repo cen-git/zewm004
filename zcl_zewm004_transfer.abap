@@ -1,22 +1,29 @@
 *&---------------------------------------------------------------------*
 *& Class:        ZCL_ZEWM004_TRANSFER
 *& Application:  ZEWM004 - Internal Transfer (IM-EWM)
-*& Purpose:      Screen1 (Create HU) backend logic. Methods below are
-*&               called directly by name from the generic V2 dispatcher
+*& Purpose:      Screen1 (Create HU) + Screen2 (Move HU to Dest. Bin)
+*&               backend logic. Methods below are called directly by
+*&               name from the generic V2 dispatcher
 *&               (frontend sends { fname: "ZCL_ZEWM004_TRANSFER", mname: <METHOD> },
 *&               dispatcher does CREATE OBJECT + CALL METHOD lo_obj->(mname)
 *&               with REQPARAM in / RESTYPE, RESMSG, RESDATA out) - so the
 *&               public method names/parameters below must match what the
 *&               frontend calls (check_material/check_sloc/check_batch/
-*&               check_qty/check_packmat/create_hu).
+*&               check_qty/check_packmat/create_hu for Screen1;
+*&               check_bin/transfer for Screen2, per Screen2.controller.js).
 *&
 *& NOTE: CDS view/field names normalized from the supplied spec and must
 *&       be verified against the actual system:
 *&         - CHECK_BATCH additionally filters on Batch itself (the
 *&           spec only mentioned Plant+Material, but a batch check
 *&           that ignores the batch value would be meaningless)
-*&         - CALL_CREATE_HU_API reuses the ZZT_REST_SYSID / 'SELF'
-*&           loopback pattern from ZCL_ZEWM005_TRANSFER's CALL_MOVE_HU_API
+*&         - CALL_CREATE_HU_API / CALL_MOVE_HU_API reuse the
+*&           ZZT_REST_SYSID / 'SELF' loopback pattern from
+*&           ZCL_ZEWM005_TRANSFER's CALL_MOVE_HU_API
+*&         - Screen2's "Selected Item" refers to the HU created in
+*&           Screen1 (reqparam key "hu", carried via the "flow" model) -
+*&           CHECK_BIN validates it is not empty before checking the
+*&           destination bin exists
 *&---------------------------------------------------------------------*
 CLASS zcl_zewm004_transfer DEFINITION
   PUBLIC
@@ -61,6 +68,29 @@ CLASS zcl_zewm004_transfer DEFINITION
                 resmsg   TYPE string
                 resdata  TYPE string.
 
+    " ── Screen2: ENTER on 'Dest. Bin' box ──
+    METHODS check_bin
+      IMPORTING reqparam TYPE string
+      EXPORTING restype  TYPE string
+                resmsg   TYPE string
+                resdata  TYPE string.
+
+    " ── Screen2: Confirm button ──
+    METHODS transfer
+      IMPORTING reqparam TYPE string
+      EXPORTING restype  TYPE string
+                resmsg   TYPE string
+                resdata  TYPE string.
+
+    " ── Screen3 (Print Label) 直接复用 ZCL_ZEWM006_BYHU 的 CHECK_PRINT / PRINT，
+    "    前端直接调用该类，本类无需新增打印方法 ──
+
+    METHODS get_material_list
+      IMPORTING reqparam TYPE string
+      EXPORTING restype  TYPE string
+                resmsg   TYPE string
+                resdata  TYPE string.
+
     " ── 调标准 API_HANDLINGUNIT_0001 (HandlingUnit) 创建 HU ──
     METHODS call_create_hu_api
       IMPORTING
@@ -73,6 +103,15 @@ CLASS zcl_zewm004_transfer DEFINITION
       EXPORTING
         ev_success  TYPE abap_bool
         ev_hu       TYPE string
+        ev_message  TYPE string.
+
+    " ── 调标准 API_HANDLINGUNIT_0001 SAP__self.MoveHandlingUnits 移动 HU ──
+    METHODS call_move_hu_api
+      IMPORTING
+        iv_hu       TYPE string
+        iv_destbin  TYPE string
+      EXPORTING
+        ev_success  TYPE abap_bool
         ev_message  TYPE string.
 
   PRIVATE SECTION.
@@ -113,6 +152,23 @@ CLASS zcl_zewm004_transfer DEFINITION
       IMPORTING iv_packmat  TYPE matnr
       EXPORTING ev_restype  TYPE string
                 ev_resmsg   TYPE string.
+
+    " ── Screen2 校验：'Selected Item' 即 Screen1 创建出的 HU ──
+    METHODS validate_selected_item
+      IMPORTING iv_hu      TYPE string
+      EXPORTING ev_restype TYPE string
+                ev_resmsg  TYPE string.
+
+    METHODS validate_destbin_mandatory
+      IMPORTING iv_destbin TYPE string
+      EXPORTING ev_restype TYPE string
+                ev_resmsg  TYPE string.
+
+    " Existence check against I_EWM_StorageBin_2-EWMStorageBin
+    METHODS validate_bin_exists
+      IMPORTING iv_destbin TYPE string
+      EXPORTING ev_restype TYPE string
+                ev_resmsg  TYPE string.
 
     METHODS get_base_unit
       IMPORTING iv_material    TYPE matnr
@@ -272,6 +328,46 @@ CLASS zcl_zewm004_transfer IMPLEMENTATION.
     IF sy-subrc <> 0 OR lv_product_type <> 'VEKP'.
       ev_restype = 'E'.
       ev_resmsg  = |Packaging material { iv_packmat } is invalid.|.
+      RETURN.
+    ENDIF.
+
+    ev_restype = 'S'.
+  ENDMETHOD.
+
+
+  " Screen2: 'Selected Item' 字段就是 Screen1 创建出来的 HU，非空校验
+  METHOD validate_selected_item.
+    IF iv_hu IS INITIAL.
+      ev_restype = 'E'.
+      ev_resmsg  = |Field 'Selected Item' is mandatory.|.
+      RETURN.
+    ENDIF.
+
+    ev_restype = 'S'.
+  ENDMETHOD.
+
+
+  METHOD validate_destbin_mandatory.
+    IF iv_destbin IS INITIAL.
+      ev_restype = 'E'.
+      ev_resmsg  = |Field 'Dest. Bin' is mandatory.|.
+      RETURN.
+    ENDIF.
+
+    ev_restype = 'S'.
+  ENDMETHOD.
+
+
+  " Existence check against I_EWM_StorageBin_2 (shared by CHECK_BIN and TRANSFER)
+  METHOD validate_bin_exists.
+    SELECT SINGLE ewmstoragebin
+      FROM i_ewm_storagebin_2 WITH PRIVILEGED ACCESS AS a
+      WHERE ewmstoragebin = @iv_destbin
+      INTO @DATA(lv_bin).
+
+    IF sy-subrc <> 0.
+      ev_restype = 'E'.
+      ev_resmsg  = |Storage Bin { iv_destbin } doesn't exist.|.
       RETURN.
     ENDIF.
 
@@ -448,6 +544,75 @@ CLASS zcl_zewm004_transfer IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD check_bin.
+* ── CHECK_BIN (Screen2, ENTER on 'Dest. Bin') ────────────────────────
+* Order: 'Selected Item' (= HU from Screen1) mandatory, then Dest. Bin
+* existence check against I_EWM_StorageBin_2. Dest. Bin's own mandatory
+* check is already done client-side before this call (Screen2.controller.js).
+    DATA(lv_hu)      = get_json_value( iv_json = reqparam iv_key = 'hu' ).
+    DATA(lv_destbin) = get_json_value( iv_json = reqparam iv_key = 'destBin' ).
+
+    validate_selected_item(
+      EXPORTING iv_hu      = lv_hu
+      IMPORTING ev_restype = restype
+                ev_resmsg  = resmsg ).
+    IF restype = 'E'.
+      RETURN.
+    ENDIF.
+
+    validate_bin_exists(
+      EXPORTING iv_destbin = lv_destbin
+      IMPORTING ev_restype = restype
+                ev_resmsg  = resmsg ).
+  ENDMETHOD.
+
+
+  METHOD transfer.
+* ── TRANSFER (Screen2, Confirm button) ───────────────────────────────
+* Re-validates Dest. Bin (mandatory -> existence), then moves the HU
+* via API_HANDLINGUNIT_0001 SAP__self.MoveHandlingUnits.
+    DATA lv_restype TYPE string.
+    DATA lv_resmsg  TYPE string.
+
+    DATA(lv_hu)      = get_json_value( iv_json = reqparam iv_key = 'hu' ).
+    DATA(lv_destbin) = get_json_value( iv_json = reqparam iv_key = 'destBin' ).
+
+    validate_destbin_mandatory(
+      EXPORTING iv_destbin = lv_destbin
+      IMPORTING ev_restype = lv_restype
+                ev_resmsg  = lv_resmsg ).
+    IF lv_restype = 'E'.
+      restype = lv_restype. resmsg = lv_resmsg. RETURN.
+    ENDIF.
+
+    validate_bin_exists(
+      EXPORTING iv_destbin = lv_destbin
+      IMPORTING ev_restype = lv_restype
+                ev_resmsg  = lv_resmsg ).
+    IF lv_restype = 'E'.
+      restype = lv_restype. resmsg = lv_resmsg. RETURN.
+    ENDIF.
+
+    DATA lv_success TYPE abap_bool.
+    DATA lv_message TYPE string.
+
+    call_move_hu_api(
+      EXPORTING iv_hu      = lv_hu
+                iv_destbin = lv_destbin
+      IMPORTING ev_success = lv_success
+                ev_message = lv_message ).
+
+    IF lv_success <> abap_true.
+      restype = 'E'.
+      resmsg  = lv_message.
+      RETURN.
+    ENDIF.
+
+    restype = 'S'.
+    resmsg  = |HU { lv_hu } moved to bin { lv_destbin } successfully.|.
+  ENDMETHOD.
+
+
   METHOD call_create_hu_api.
 * ── 调 S/4HANA 标准 API_HANDLINGUNIT_0001 (HandlingUnit) 创建 HU ──
     DATA: lv_csrf     TYPE string,
@@ -535,6 +700,88 @@ CLASS zcl_zewm004_transfer IMPLEMENTATION.
       CATCH cx_root INTO DATA(lx).
         ev_success = abap_false.
         ev_message = lx->get_text( ).
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD call_move_hu_api.
+* ── 调 S/4HANA 标准 API_HANDLINGUNIT_0001 绑定操作 SAP__self.MoveHandlingUnits ──
+* POST .../HandlingUnit(HandlingUnitExternalID='<hu>',Warehouse='')/SAP__self.MoveHandlingUnits
+    DATA: lv_csrf     TYPE string,
+          lv_response TYPE string,
+          lv_body     TYPE string.
+
+    SELECT SINGLE *
+      FROM zzt_rest_sysid
+     WHERE zztsysid = 'SELF'
+      INTO @DATA(ls_sysid).
+
+    DATA(lv_base_url) =
+      |{ ls_sysid-zzurl }/sap/opu/odata4/sap/api_handlingunit/srvd_a2x/sap/handlingunit/0001/|.
+
+    DATA(lv_post_path) =
+      |/sap/opu/odata4/sap/api_handlingunit/srvd_a2x/sap/handlingunit/0001/| &&
+      |HandlingUnit(HandlingUnitExternalID='{ iv_hu }',Warehouse='')/SAP__self.MoveHandlingUnits|.
+
+    TRY.
+        DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination(
+          i_destination = cl_http_destination_provider=>create_by_url( i_url = lv_base_url ) ).
+
+        " Step 1: GET CSRF token
+        DATA(lo_req) = lo_client->get_http_request( ).
+        lo_req->set_authorization_basic(
+          i_username = CONV string( ls_sysid-zzuser )
+          i_password = CONV string( ls_sysid-zzpwd ) ).
+        lo_req->set_header_field( i_name = 'x-csrf-token' i_value = 'fetch' ).
+        lo_req->set_header_field( i_name = 'Accept'       i_value = 'application/json' ).
+
+        DATA(lo_resp) = lo_client->execute( if_web_http_client=>get ).
+        lo_resp->get_header_field(
+          EXPORTING i_name  = 'x-csrf-token'
+          RECEIVING r_value = lv_csrf ).
+
+        IF lv_csrf IS INITIAL.
+          lo_client->close( ).
+          ev_success = abap_false.
+          ev_message = 'Failed to fetch CSRF token.'.
+          RETURN.
+        ENDIF.
+
+        " Step 2: POST bound action MoveHandlingUnits
+        lv_body =
+          |\{| &&
+          |"HandlingUnitExternalID":"{ iv_hu }",| &&
+          |"HandlingUnitGoodsMovementEvent":"0006",| &&
+          |"ReceivingPlant":"{ co_plant }",| &&
+          |"ReceivingStorageLocation":"A002",| &&
+          |"ReceivingStorageBin":"{ iv_destbin }"| &&
+          |\}|.
+
+        DATA(lo_post_req) = lo_client->get_http_request( ).
+        lo_post_req->set_uri_path( i_uri_path = lv_post_path ).
+        lo_post_req->set_authorization_basic(
+          i_username = CONV string( ls_sysid-zzuser )
+          i_password = CONV string( ls_sysid-zzpwd ) ).
+        lo_post_req->set_header_field( i_name = 'Content-Type' i_value = 'application/json' ).
+        lo_post_req->set_header_field( i_name = 'x-csrf-token' i_value = lv_csrf ).
+        lo_post_req->set_text( lv_body ).
+
+        DATA(lo_post_resp) = lo_client->execute( if_web_http_client=>post ).
+        DATA(lv_status)    = lo_post_resp->get_status( ).
+        lv_response        = lo_post_resp->get_text( ).
+
+        lo_client->close( ).
+
+        IF lv_status-code >= 200 AND lv_status-code < 300.
+          ev_success = abap_true.
+        ELSE.
+          ev_success = abap_false.
+          ev_message = lv_response.
+        ENDIF.
+
+      CATCH cx_root INTO DATA(lx2).
+        ev_success = abap_false.
+        ev_message = lx2->get_text( ).
     ENDTRY.
   ENDMETHOD.
 

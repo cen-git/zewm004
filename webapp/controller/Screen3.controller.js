@@ -97,8 +97,11 @@ sap.ui.define([
             this._values.s3Printer = sValue;
             this._clearError(oInput);
 
-            // Reuse ZEWM006 BYHU backend printer existence check.
-            this._callApi("check_print", { printer: sValue }, function() {
+            // Reuse ZEWM006 BYHU backend printer check. HU comes from the flow
+            // model (carried from Screen1/Screen2); the ZEWM006 backend expects it.
+            var sHU = this.getOwnerComponent().getModel("flow").getProperty("/hu");
+
+            this._callApi("check_print", { hu: sHU, printer: sValue }, function() {
                 // Printer is the last box on Screen3 — nothing to advance the cursor to.
             }, function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgPrinterNotExist", [sValue]));

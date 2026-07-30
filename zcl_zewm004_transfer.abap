@@ -9,7 +9,7 @@
 *&               with REQPARAM in / RESTYPE, RESMSG, RESDATA out) - so the
 *&               public method names/parameters below must match what the
 *&               frontend calls (check_material/check_sloc/check_batch/
-*&               check_qty/check_packmat/create_hu for Screen1;
+*&               check_qty/check_packmat/get_pack_mat/create_hu for Screen1;
 *&               check_bin/transfer for Screen2, per Screen2.controller.js).
 *&
 *& NOTE: CDS view/field names normalized from the supplied spec and must
@@ -86,6 +86,13 @@ CLASS zcl_zewm004_transfer DEFINITION
     "    前端直接调用该类，本类无需新增打印方法 ──
 
     METHODS get_material_list
+      IMPORTING reqparam TYPE string
+      EXPORTING restype  TYPE string
+                resmsg   TYPE string
+                resdata  TYPE string.
+
+    " ── 根据物料号获取包装物料 ──
+    METHODS get_pack_mat
       IMPORTING reqparam TYPE string
       EXPORTING restype  TYPE string
                 resmsg   TYPE string
@@ -455,10 +462,116 @@ CLASS zcl_zewm004_transfer IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD get_pack_mat.
+* ── GET_PACK_MAT ─────────────────────────────────────────────────────
+* 根据物料号查找对应的包装物料，查找逻辑：
+*   Step 1a: I_PaInDetMaterialPlant (ConditionType='STOC', Plant='BORJ',
+*            有效期覆盖当前日期) → PackingInstructionSystemUUID
+*   Step 1b: 若 Step 1a 无数据 → I_PaInDetMaterialPlantSupplier
+*            (ConditionType='RCPT', 其余条件同上) → PackingInstructionSystemUUID
+*   Step 2a: I_PackingInstructionComponent (Category='I',
+*            ItemPackingInstructionSystUUID=null) → 同 UUID 下 Category='P'
+*            的 Material
+*   Step 2b: 若 Step 2a 无数据 → Category='I' 且 Material=null 取
+*            ItemPackingInstructionSystUUID → 以此为 UUID 查 Category='P'
+*            的 Material
+    DATA: lv_material           TYPE matnr,
+          lv_pack_instr_uuid    TYPE sysuuid_x16,
+          lv_child_uuid         TYPE sysuuid_x16,
+          lv_pack_mat           TYPE matnr.
+
+    lv_material = get_json_value( iv_json = reqparam iv_key = 'material' ).
+
+    " 补前导0到18位
+    DATA(lv_material_18) = |{ lv_material ALPHA = IN }|.
+
+    " ── Step 1a: 从 I_PaInDetMaterialPlant 获取 PackingInstructionSystemUUID (STOC) ──
+    SELECT SINGLE packinginstructionsystemuuid
+      FROM i_paindetmaterialplant WITH PRIVILEGED ACCESS AS a
+      WHERE material                 = @lv_material_18
+        AND plant                    = @co_plant
+        AND conditionvalidityenddate >= @sy-datum
+        AND conditionvaliditystartdate <= @sy-datum
+        AND conditiontype             = 'STOC'
+      INTO @lv_pack_instr_uuid.
+
+    " ── Step 1b: 若 Step 1a 无数据，从 I_PaInDetMaterialPlantSupplier 获取 (RCPT) ──
+    IF lv_pack_instr_uuid IS INITIAL.
+      SELECT SINGLE packinginstructionsystemuuid
+        FROM i_paindetmaterialplantsupplier WITH PRIVILEGED ACCESS AS a
+        WHERE material                 = @lv_material_18
+          AND plant                    = @co_plant
+          AND conditionvalidityenddate >= @sy-datum
+          AND conditionvaliditystartdate <= @sy-datum
+          AND conditiontype             = 'RCPT'
+        INTO @lv_pack_instr_uuid.
+    ENDIF.
+
+    " 两步都没取到 → 报错
+    IF lv_pack_instr_uuid IS INITIAL.
+      restype = 'E'.
+      resmsg  = |No packaging material found for material { lv_material_18 }.|.
+      RETURN.
+    ENDIF.
+
+    " ── Step 2a: 从 I_PackingInstructionComponent 查顶层 'I' 记录（ItemPackingInstructionSystUUID=null），
+    "             再取同 UUID 下 Category='P' 的 Material ──
+    SELECT SINGLE material
+      FROM i_packinginstructioncomponent WITH PRIVILEGED ACCESS AS a
+      WHERE packinginstructionsystemuuid = @lv_pack_instr_uuid
+        AND packinginstructionitemcategory = 'P'
+      INTO @lv_pack_mat.
+
+    IF lv_pack_mat IS NOT INITIAL.
+      " 确认存在对应的 'I' 记录（ItemPackingInstructionSystUUID=null）
+      SELECT SINGLE packinginstructionsystemuuid
+        FROM i_packinginstructioncomponent WITH PRIVILEGED ACCESS AS a
+        WHERE packinginstructionsystemuuid   = @lv_pack_instr_uuid
+          AND packinginstructionitemcategory = 'I'
+          AND itempackinginstructionsystuuid IS NULL
+        INTO @DATA(lv_dummy).
+
+      IF sy-subrc <> 0.
+        CLEAR lv_pack_mat. " 'I' 记录不满足条件，走 Step 2b
+      ENDIF.
+    ENDIF.
+
+    " ── Step 2b: 若 Step 2a 无数据，取 Category='I' 且 Material=null 的
+    "            ItemPackingInstructionSystUUID，再以此为 UUID 查 Category='P' ──
+    IF lv_pack_mat IS INITIAL.
+      SELECT SINGLE itempackinginstructionsystuuid
+        FROM i_packinginstructioncomponent WITH PRIVILEGED ACCESS AS a
+        WHERE packinginstructionsystemuuid   = @lv_pack_instr_uuid
+          AND packinginstructionitemcategory = 'I'
+          AND material IS NULL
+        INTO @lv_child_uuid.
+
+      IF lv_child_uuid IS NOT INITIAL.
+        SELECT SINGLE material
+          FROM i_packinginstructioncomponent WITH PRIVILEGED ACCESS AS a
+          WHERE packinginstructionsystemuuid = @lv_child_uuid
+            AND packinginstructionitemcategory = 'P'
+          INTO @lv_pack_mat.
+      ENDIF.
+    ENDIF.
+
+    " 最终仍未取到 → 报错
+    IF lv_pack_mat IS INITIAL.
+      restype = 'E'.
+      resmsg  = |No packaging material found for material { lv_material_18 }.|.
+      RETURN.
+    ENDIF.
+
+    restype = 'S'.
+    resmsg  = |Packaging material { lv_pack_mat } found.|.
+    resdata = |\{"packMat":"{ lv_pack_mat }"\}|.
+  ENDMETHOD.
+
+
   METHOD create_hu.
 * ── CREATE_HU ───────────────────────────────────────────────────────
-* Re-validates all 5 fields in the Material -> Src Loc -> Batch -> Qty ->
-* Pack Mat order, then creates the HU via API_HANDLINGUNIT_0001 and looks
+* Re-validates 4 fields (Material -> Src Loc -> Batch -> Qty),
+* Pack Mat is auto-populated by get_pack_mat and no longer validated here,
 * up the recommended bin for the response payload consumed by Screen2.
     DATA lv_restype TYPE string.
     DATA lv_resmsg  TYPE string.
@@ -501,14 +614,6 @@ CLASS zcl_zewm004_transfer IMPLEMENTATION.
                 iv_qty      = lv_qty
       IMPORTING ev_restype  = lv_restype
                 ev_resmsg   = lv_resmsg ).
-    IF lv_restype = 'E'.
-      restype = lv_restype. resmsg = lv_resmsg. RETURN.
-    ENDIF.
-
-    validate_packmat(
-      EXPORTING iv_packmat = lv_packmat
-      IMPORTING ev_restype = lv_restype
-                ev_resmsg  = lv_resmsg ).
     IF lv_restype = 'E'.
       restype = lv_restype. resmsg = lv_resmsg. RETURN.
     ENDIF.

@@ -46,10 +46,6 @@ sap.ui.define([
             this._values.s1Qty = oEvent.getParameter("value");
         },
 
-        onPackMatLiveChange: function(oEvent) {
-            this._values.s1PackMat = oEvent.getParameter("value");
-        },
-
         _onKeyDown: function(oEvent) {
             if (oEvent.key === "Enter") {
                 this._onEnter();
@@ -73,7 +69,6 @@ sap.ui.define([
                 case "s1SrcLoc": this.onSrcLocSubmit(sDomValue); break;
                 case "s1Batch": this.onBatchSubmit(sDomValue); break;
                 case "s1Qty": this.onQtySubmit(sDomValue); break;
-                case "s1PackMat": this.onPackMatSubmit(sDomValue); break;
             }
         },
 
@@ -118,7 +113,21 @@ sap.ui.define([
             this._clearError(oInput);
 
             this._callApi("check_material", { material: sValue }, function() {
-                this.byId("s1SrcLoc").focus();
+                // 根据物料号获取包装物料
+                this._callApi("get_pack_mat", { material: sValue }, function(oData) {
+                    var oResData = {};
+                    try { oResData = JSON.parse(oData.resdata || "{}"); } catch (e) { oResData = {}; }
+                    var sPackMat = oResData.packMat || "";
+                    if (!sPackMat) {
+                        this._showError(oInput, this._i18n("msgNoPackMatForMaterial", [sValue]));
+                        return;
+                    }
+                    this._values.s1PackMat = sPackMat;
+                    this.byId("s1PackMat").setValue(sPackMat);
+                    this.byId("s1SrcLoc").focus();
+                }.bind(this), function(sMsg) {
+                    this._showError(oInput, sMsg || this._i18n("msgNoPackMatForMaterial", [sValue]));
+                }.bind(this), "ZEWM004-S1-GETPACKMAT");
             }.bind(this), function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgMaterialNotExist", [sValue]));
             }.bind(this), "ZEWM004-S1-CHECKMAT");
@@ -177,27 +186,10 @@ sap.ui.define([
                 batch: this._values.s1Batch,
                 qty: sValue
             }, function() {
-                this.byId("s1PackMat").focus();
+                this.byId("screen1BtnConfirm").focus();
             }.bind(this), function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgQtyInvalid", [sValue]));
             }.bind(this), "ZEWM004-S1-CHECKQTY");
-        },
-
-        onPackMatSubmit: function(sDomValue) {
-            var oInput = this.byId("s1PackMat");
-            var sValue = (sDomValue || this._values.s1PackMat || oInput.getValue() || "").trim();
-
-            if (!sValue) {
-                this._showError(oInput, this._i18n("msgPackMatMandatory"));
-                return;
-            }
-            this._values.s1PackMat = sValue;
-            this._clearError(oInput);
-
-            this._callApi("check_pack", { packMat: sValue }, function() {
-            }, function(sMsg) {
-                this._showError(oInput, sMsg || this._i18n("msgPackMatNotExist", [sValue]));
-            }.bind(this), "ZEWM004-S1-CHECKPACKMAT");
         },
 
         onConfirm: function() {
@@ -205,8 +197,7 @@ sap.ui.define([
                 s1Material: this._i18n("msgMaterialMandatory"),
                 s1SrcLoc: this._i18n("msgSrcLocMandatory"),
                 s1Batch: this._i18n("msgBatchMandatory"),
-                s1Qty: this._i18n("msgQtyMandatory"),
-                s1PackMat: this._i18n("msgPackMatMandatory")
+                s1Qty: this._i18n("msgQtyMandatory")
             };
 
             for (var sFieldId in mFields) {

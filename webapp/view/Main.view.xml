@@ -20,7 +20,7 @@
                     <Label id="screen1LblQty" text="{i18n>lblQty}"/>
                     <Input id="s1Qty" type="Number" liveChange=".onQtyLiveChange"/>
                     <Label id="screen1LblPackMat" text="{i18n>lblPackMat}"/>
-                    <Input id="s1PackMat" maxLength="40" liveChange=".onPackMatLiveChange"/>
+                    <Input id="s1PackMat" editable="false"/>
                 </f:content>
             </f:SimpleForm>
         </content>

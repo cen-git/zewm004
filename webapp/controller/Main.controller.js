@@ -119,6 +119,8 @@ sap.ui.define([
                     try { oResData = JSON.parse(oData.resdata || "{}"); } catch (e) { oResData = {}; }
                     var sPackMat = oResData.packMat || "";
                     if (!sPackMat) {
+                        this._values.s1PackMat = "";
+                        this.byId("s1PackMat").setValue("");
                         this._showError(oInput, this._i18n("msgNoPackMatForMaterial", [sValue]));
                         return;
                     }
@@ -126,6 +128,8 @@ sap.ui.define([
                     this.byId("s1PackMat").setValue(sPackMat);
                     this.byId("s1SrcLoc").focus();
                 }.bind(this), function(sMsg) {
+                    this._values.s1PackMat = "";
+                    this.byId("s1PackMat").setValue("");
                     this._showError(oInput, sMsg || this._i18n("msgNoPackMatForMaterial", [sValue]));
                 }.bind(this), "ZEWM004-S1-GETPACKMA");
             }.bind(this), function(sMsg) {

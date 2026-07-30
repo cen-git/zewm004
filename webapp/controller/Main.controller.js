@@ -127,7 +127,7 @@ sap.ui.define([
                     this.byId("s1SrcLoc").focus();
                 }.bind(this), function(sMsg) {
                     this._showError(oInput, sMsg || this._i18n("msgNoPackMatForMaterial", [sValue]));
-                }.bind(this), "ZEWM004-S1-GETPACKMAT");
+                }.bind(this), "ZEWM004-S1-GETPACKMA");
             }.bind(this), function(sMsg) {
                 this._showError(oInput, sMsg || this._i18n("msgMaterialNotExist", [sValue]));
             }.bind(this), "ZEWM004-S1-CHECKMAT");

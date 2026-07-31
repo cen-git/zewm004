@@ -10,6 +10,7 @@ sap.ui.define([
 
         onInit: function() {
             this._values = { s1Material: "", s1SrcLoc: "", s1Batch: "", s1Qty: "", s1PackMat: "" };
+            this._materialValidated = "";
             this._lastInputId = "";
             this._focusHandler = this._onFocus.bind(this);
             document.addEventListener("focusin", this._focusHandler);
@@ -32,6 +33,13 @@ sap.ui.define([
 
         onMaterialLiveChange: function(oEvent) {
             this._values.s1Material = oEvent.getParameter("value");
+        },
+
+        onMaterialChange: function(oEvent) {
+            var sValue = (oEvent.getParameter("value") || "").trim();
+            if (sValue && sValue !== this._materialValidated) {
+                this.onMaterialSubmit(sValue);
+            }
         },
 
         onSrcLocLiveChange: function(oEvent) {
@@ -98,6 +106,7 @@ sap.ui.define([
                 this._clearError(oCtrl);
             }.bind(this));
             this._values = { s1Material: "", s1SrcLoc: "", s1Batch: "", s1Qty: "", s1PackMat: "" };
+            this._materialValidated = "";
             this.byId("s1Material").focus();
         },
 
@@ -110,6 +119,7 @@ sap.ui.define([
                 return;
             }
             this._values.s1Material = sValue;
+            this._materialValidated = sValue;
             this._clearError(oInput);
 
             this._callApi("check_material", { material: sValue }, function() {

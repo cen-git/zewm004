@@ -12,7 +12,7 @@
             <f:SimpleForm id="screen1Form" editable="true" layout="ResponsiveGridLayout">
                 <f:content>
                     <Label id="screen1LblMaterial" text="{i18n>lblMaterial}"/>
-                    <Input id="s1Material" maxLength="40" liveChange=".onMaterialLiveChange"/>
+                    <Input id="s1Material" maxLength="40" liveChange=".onMaterialLiveChange" change=".onMaterialChange"/>
                     <Label id="screen1LblSrcLoc" text="{i18n>lblSrcLoc}"/>
                     <Input id="s1SrcLoc" maxLength="4" liveChange=".onSrcLocLiveChange"/>
                     <Label id="screen1LblBatch" text="{i18n>lblBatch}"/>

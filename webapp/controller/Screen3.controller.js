@@ -127,8 +127,18 @@ sap.ui.define([
                 if (oData.restype === "W") {
                     MessageBox.warning(oData.resmsg || this._i18n("msgNoLabelToPrint"));
                 } else {
-                    MessageBox.success(oData.resmsg || this._i18n("msgPrintSuccess"));
-                    this.onRefresh();
+                    MessageBox.success(oData.resmsg || this._i18n("msgPrintSuccess"), {
+                        onClose: function() {
+                            // Clear Screen3 own state
+                            this.onRefresh();
+                            // Reset shared flow model for a fresh scan round
+                            var oFlowModel = this.getOwnerComponent().getModel("flow");
+                            oFlowModel.setProperty("/hu", "");
+                            oFlowModel.setProperty("/recommendedBin", "");
+                            // Navigate to Main
+                            this.getOwnerComponent().getRouter().navTo("RouteMain");
+                        }.bind(this)
+                    });
                 }
             }.bind(this), function(sMsg) {
                 MessageBox.error(sMsg || "Print request failed");
